@@ -1,4 +1,4 @@
-# Stem Separation MVP
+# Stem Separation POC
 
 ## Directory Strucutre: 
 
