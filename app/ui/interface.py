@@ -9,7 +9,9 @@ MAX_STEMS = 10
 
 def validate_and_process(audio_path):
     if not audio_path:
-        return [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)]
+        return [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)] + [
+            gr.update(visible=False)  # status label
+        ]
     
     _, ext = os.path.splitext(audio_path.lower())
     if ext not in ALLOWED_EXTENSIONS:
@@ -34,13 +36,23 @@ def validate_and_process(audio_path):
             ))
         else:
             ui_updates.append(gr.update(visible=False, value=None))
+    
+    # Hide loading indicators on completion
+    ui_updates.append(gr.update(visible=False))  # status label
             
     return ui_updates
 
 def clear_all():
     updates = [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)]
-    updates.append(gr.update(value=None)) 
-    updates.append(gr.update(interactive=False)) 
+    updates.append(gr.update(value=None))        # input audio
+    updates.append(gr.update(interactive=False)) # submit button
+    updates.append(gr.update(visible=False))     # status label
+    return updates
+
+def show_loading():
+    """Show loading indicators when processing starts"""
+    updates = [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)]
+    updates.append(gr.update(visible=True, value="⏳ Processing... This may take a few minutes."))  # status
     return updates
 
 def build_interface():
@@ -65,6 +77,16 @@ def build_interface():
                     clear_btn = gr.Button("Add New / Clear", variant="stop")
                 
                 gr.Markdown(f"**System Limits:** Max {MAX_FILE_SIZE_MB}MB | Format: WAV, MP3, FLAC, M4A")
+                
+                # Loading Status Indicator
+                status_label = gr.Label(
+                    value="Ready",
+                    label="Processing Status",
+                    visible=False
+                )
+                
+                # Progress Bar
+                progress_bar = gr.Progress(track_tqdm=True)
 
             # SPACER INTERSTICE (Visual Padding Division)
             with gr.Column(scale=1):
@@ -92,15 +114,19 @@ def build_interface():
         )
 
         submit_btn.click(
+            fn=show_loading,
+            inputs=[],
+            outputs=audio_slots + [status_label]
+        ).then(
             fn=validate_and_process,
             inputs=[input_audio],
-            outputs=audio_slots
+            outputs=audio_slots + [status_label]
         )
 
         clear_btn.click(
             fn=clear_all,
             inputs=[],
-            outputs=audio_slots + [input_audio, submit_btn]
+            outputs=audio_slots + [input_audio, submit_btn, status_label]
         )
             
     return demo

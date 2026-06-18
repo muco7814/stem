@@ -2,3 +2,4 @@ venv/
 outputs/
 *.wav 
 *.code-workspace
+requirements_used.txt
