@@ -1,4 +1,5 @@
 import os
+import shutil
 from demucs import separate
 from pydub import AudioSegment
 from pydub.silence import split_on_silence
@@ -12,6 +13,8 @@ def process_audio_pipeline(file_path: str) -> dict:
     
     # Define the output directory for the separated tracks
     output_dir = './separated_audio'
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
     
     print(f"Separating tracks for {file_path}...")

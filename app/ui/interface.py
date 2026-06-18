@@ -5,55 +5,71 @@ from app.core.pipeline import process_audio_pipeline
 # Configuration Guards
 MAX_FILE_SIZE_MB = 30
 ALLOWED_EXTENSIONS = ['.mp3', '.wav', '.flac', '.aac', '.m4a']
-MAX_STEMS = 10  
 
 def validate_and_process(audio_path):
     if not audio_path:
-        return [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)] + [
-            gr.update(visible=False)  # status label
-        ]
+        return [gr.update(value=None)] * 4 + [gr.update(visible=False)]
     
-    _, ext = os.path.splitext(audio_path.lower())
-    if ext not in ALLOWED_EXTENSIONS:
-        raise gr.Error(f"Unsupported file format. Please upload: {', '.join(ALLOWED_EXTENSIONS)}")
-        
-    file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
-    if file_size_mb > MAX_FILE_SIZE_MB:
-        raise gr.Error(f"File size exceeds maximum limit of {MAX_FILE_SIZE_MB}MB. (Your file: {file_size_mb:.2f}MB)")
-
+    # Execute backend pipeline
     stems = process_audio_pipeline(audio_path)
     
-    ui_updates = []
-    stem_items = list(stems.items())
+    # 🚨 DEBUG PRINT 1: What did the backend actually return?
+    print("\n" + "="*50)
+    print("DEBUG 1 - RAW DICTIONARY FROM BACKEND:")
+    print(stems)
+    print("="*50 + "\n")
     
-    for i in range(MAX_STEMS):
-        if i < len(stem_items):
-            stem_name, file_path = stem_items[i]
-            ui_updates.append(gr.update(
-                visible=True, 
-                label=f"Isolated Component: {stem_name.upper()}", 
-                value=file_path
-            ))
-        else:
-            ui_updates.append(gr.update(visible=False, value=None))
-    
-    # Hide loading indicators on completion
-    ui_updates.append(gr.update(visible=False))  # status label
-            
-    return ui_updates
+    # Safely extract the 4 known outputs by matching dictionary keys
+    vocals_path, drums_path, bass_path, other_path = None, None, None, None
+    for key, path in stems.items():
+        k = path.split('/')[-1]
+        if k == 'vocals_normalized.wav':
+            vocals_path = path
+        elif k == 'drums.wav':
+            drums_path = path
+        elif k == 'bass.wav':
+            bass_path = path
+        elif k == 'other.wav':
+            other_path = path
+
+    # 🚨 DEBUG PRINT 2: Did the UI successfully map them?
+    print("\n" + "="*50)
+    print("DEBUG 2 - MAPPED PATHS FOR UI:")
+    print(f"Bass:   {bass_path}")
+    print(f"Drums:  {drums_path}")
+    print(f"Other:  {other_path}")
+    print(f"Vocals: {vocals_path}")
+    print("="*50 + "\n")
+
+    return [
+        gr.update(value=bass_path),
+        gr.update(value=drums_path),
+        gr.update(value=other_path),
+        gr.update(value=vocals_path),
+        gr.update(visible=False)  
+    ]
 
 def clear_all():
-    updates = [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)]
-    updates.append(gr.update(value=None))        # input audio
-    updates.append(gr.update(interactive=False)) # submit button
-    updates.append(gr.update(visible=False))     # status label
-    return updates
+    """Brings the UI back to its base configuration state."""
+    return [
+        gr.update(value=None),                # bass
+        gr.update(value=None),                # drums
+        gr.update(value=None),                # other
+        gr.update(value=None),                # vocals
+        gr.update(value=None),                # input audio
+        gr.update(interactive=False),         # submit button
+        gr.update(visible=False)              # status label
+    ]
 
 def show_loading():
     """Show loading indicators when processing starts"""
-    updates = [gr.update(visible=False, value=None) for _ in range(MAX_STEMS)]
-    updates.append(gr.update(visible=True, value="⏳ Processing... This may take a few minutes."))  # status
-    return updates
+    return [
+        gr.update(value=None),
+        gr.update(value=None),
+        gr.update(value=None),
+        gr.update(value=None),
+        gr.update(visible=True, value="⏳ Processing... This may take a few minutes.") # status
+    ]
 
 def build_interface():
     with gr.Blocks(elem_classes="app-container") as demo:
@@ -84,9 +100,6 @@ def build_interface():
                     label="Processing Status",
                     visible=False
                 )
-                
-                # Progress Bar
-                progress_bar = gr.Progress(track_tqdm=True)
 
             # SPACER INTERSTICE (Visual Padding Division)
             with gr.Column(scale=1):
@@ -96,15 +109,14 @@ def build_interface():
             with gr.Column(scale=4):
                 gr.Markdown("### 🔊 Enhanced Stem Multi-Tracks")
                 
-                audio_slots = []
-                for i in range(MAX_STEMS):
-                    slot = gr.Audio(
-                        label=f"Stem Slot {i+1}", 
-                        type="filepath",
-                        interactive=False,
-                        visible=False  
-                    )
-                    audio_slots.append(slot)
+                # REMOVED `visible=False` - They now start visible but empty
+                bass_out = gr.Audio(label="Isolated Component: BASS", type="filepath", interactive=False)
+                drums_out = gr.Audio(label="Isolated Component: DRUMS", type="filepath", interactive=False)
+                other_out = gr.Audio(label="Isolated Component: OTHER", type="filepath", interactive=False)
+                vocals_out = gr.Audio(label="Isolated Component: VOCALS", type="filepath", interactive=False)
+                
+                # Array mapped directly to the outputs of our click events
+                audio_slots = [bass_out, drums_out, other_out, vocals_out]
 
         # --- EVENT LISTENERS ---
         input_audio.change(
